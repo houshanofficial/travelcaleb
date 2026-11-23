@@ -160,7 +160,14 @@ let currentPhoto = null;
 let currentCommentPhotoId = null; 
 
 async function loadMapData() {
-  const { data, error } = await supabaseClient.from('photos').select('*').eq('status', 'published'); 
+  // 修改：通过 photos.city 去关联 locations 表，把对应的 province 一起查出来
+  const { data, error } = await supabaseClient
+    .from('photos')
+    .select(`
+      *,
+      locations!inner(province)
+    `)
+    .eq('status', 'published'); 
   if (error) { document.getElementById('stats').innerText = '加载失败：' + error.message; return; }
 
   const uniqueCities = new Set(data.map(photo => photo.city).filter(Boolean));
@@ -177,42 +184,48 @@ async function loadMapData() {
   // ★ 新增：提取所有有照片的省份
   // 注意：你的数据库里 city 存的是 "四川省 · 成都市"
   // 我们需要用 split(' · ') 把前面的省份切出来
+  // 清除旧的青蛙标记
+  markerRecords.forEach(record => map.removeLayer(record.marker));
+  markerRecords = [];
+
+  // ★ 直接从关联查询出来的数据中提取省份
   const visitedProvinces = new Set();
   data.forEach(photo => {
-    if (photo.city && photo.city.includes('·')) {
-      const prov = photo.city.split('·')[0].trim(); // 拿到 "四川省"
-      visitedProvinces.add(prov);
+    // 注意：Supabase 关联查询如果返回的是数组，取第0个；如果是对象就直接取
+    const provInfo = Array.isArray(photo.locations) ? photo.locations[0] : photo.locations;
+    if (provInfo && provInfo.province) {
+      // 去掉可能存在的空格
+      visitedProvinces.add(provInfo.province.replace(/\s+/g, ''));
     }
   });
 
-  // ★ 新增：绘制或更新中国地图板块
-  // 如果地图板块还没画出来，我们画出来
+  console.log("自动提取的省份列表：", Array.from(visitedProvinces));
+
+  // 绘制或更新地图板块
   if (!window.chinaGeoJsonLayer) {
     fetch('https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json')
       .then(res => res.json())
       .then(geoJsonData => {
         window.chinaGeoJsonLayer = L.geoJSON(geoJsonData, {
           style: function (feature) {
-            const provName = feature.properties.name; // 比如 "四川省"、"北京市"
-            // 如果这个省份在已打卡的列表里，就点亮成嫩绿色
+            const provName = feature.properties.name.replace(/\s+/g, ''); 
+            // 判断官方地图的名字是否在我们的打卡列表里
             const isVisited = visitedProvinces.has(provName);
             return {
-              color: '#d5e0d8',          // 边界线颜色（浅灰）
-              weight: 1,                 // 边界线粗细
-              fillColor: isVisited ? '#a2d846' : '#ffffff', // 点亮色 vs 默认色
-              fillOpacity: isVisited ? 0.6 : 0.2,           // 点亮透明度 vs 默认透明度
+              color: '#d5e0d8',
+              weight: 1,
+              fillColor: isVisited ? '#a2d846' : '#ffffff',
+              fillOpacity: isVisited ? 0.6 : 0.2,
               className: 'province-polygon'
             };
           },
-          interactive: false // 不让它挡住鼠标点击（让青蛙可以被点到）
+          interactive: false
         }).addTo(map);
-        // 把地图图层放到最底层，不要盖住青蛙
         window.chinaGeoJsonLayer.bringToBack();
       });
   } else {
-    // 如果已经画过了，我们只更新颜色（这样读者传了新照片不用刷新网页就能看到点亮）
     window.chinaGeoJsonLayer.eachLayer(function (layer) {
-      const provName = layer.feature.properties.name;
+      const provName = layer.feature.properties.name.replace(/\s+/g, '');
       const isVisited = visitedProvinces.has(provName);
       layer.setStyle({
         fillColor: isVisited ? '#a2d846' : '#ffffff',
@@ -464,5 +477,6 @@ loadMapData();
 </script>
 </body>
 </html>
+
 
 
