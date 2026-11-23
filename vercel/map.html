@@ -11,7 +11,7 @@
   body { margin: 0; padding: 0; font-family: -apple-system, "PingFang SC", sans-serif; overflow: hidden; }
   #map { width: 100vw; height: 100vh; }
   
-  /* 顶部统计卡片 */
+  /* 顶部统计卡片 (保留你的文案) */
   .header {
     position: absolute; top: 15px; left: 50%; transform: translateX(-50%);
     background: rgba(255, 255, 255, 0.95); padding: 8px 16px; border-radius: 12px; 
@@ -21,44 +21,53 @@
     pointer-events: none;
   }
 
-  /* 弹窗基础样式 */
-  .leaflet-popup-content { width: 250px !important; margin: 10px !important; }
-  .popup-content { text-align: center; }
-  .popup-content img { width: 100%; max-height: 160px; object-fit: cover; border-radius: 8px; margin-bottom: 8px; cursor: zoom-in; }
-  .popup-content .city-name { font-weight: bold; font-size: 14px; color: #333; }
-  .popup-content .nickname { font-size: 12px; color: #666; margin-top: 4px; }
+  /* ★ 核心修改：独立浮窗样式，固定在屏幕中下方 */
+  #customPopup {
+    display: none; 
+    position: absolute;
+    bottom: 100px; /* 距离底部 100px，避开三个按钮 */
+    left: 50%;
+    transform: translateX(-50%);
+    width: 280px;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+    z-index: 1500; 
+    overflow: hidden;
+    border: 1px solid #eee;
+  }
 
-  /* 弹窗内的简易评论预览区 */
-  .comment-preview {
-    margin-top: 8px; border-top: 1px dashed #eee; padding-top: 8px; text-align: left;
+  #customPopup .popup-inner {
+    padding: 12px;
+    text-align: center;
+    max-height: 60vh; /* 最高占屏幕 60%，多出的部分内部滑动 */
+    overflow-y: auto;
   }
+
+  #customPopup img { width: 100%; max-height: 160px; object-fit: cover; border-radius: 8px; margin-bottom: 8px; cursor: zoom-in; }
+  #customPopup .city-name { font-weight: bold; font-size: 15px; color: #333; }
+  #customPopup .nickname { font-size: 12px; color: #666; margin-top: 4px; }
+
+  /* 关闭按钮 */
+  .close-popup-btn {
+    position: absolute; top: 8px; right: 8px; width: 24px; height: 24px;
+    background: rgba(255,255,255,0.8); border-radius: 50%; border: none;
+    font-size: 14px; color: #666; cursor: pointer; z-index: 10; display: flex; align-items: center; justify-content: center;
+  }
+
+  /* 评论预览区 */
+  .comment-preview { margin-top: 8px; border-top: 1px dashed #eee; padding-top: 8px; text-align: left; }
   .comment-preview-title { font-size: 12px; color: #a2d846; font-weight: bold; margin-bottom: 4px; }
-  
-  /* ★ 修改 1：评论列表容器，限制高度并开启上下滑动 */
-  .comment-list-wrap {
-    max-height: 110px; 
-    overflow-y: auto;  
-    margin-top: 4px;
-    padding-right: 4px;
-  }
-  /* 美化滚动条 */
+  .comment-list-wrap { max-height: 100px; overflow-y: auto; margin-top: 4px; padding-right: 4px; }
   .comment-list-wrap::-webkit-scrollbar { width: 4px; }
   .comment-list-wrap::-webkit-scrollbar-thumb { background: #d5e0d8; border-radius: 4px; }
-
-  /* ★ 修改 2：单条评论自动换行 */
-  .comment-preview-item { 
-    font-size: 11px; color: #666; margin-bottom: 6px; line-height: 1.4;
-    display: flex; justify-content: space-between; align-items: flex-start;
-  }
-  .comment-text {
-    flex: 1; margin-right: 8px; text-align: left;
-    white-space: normal; word-wrap: break-word; 
-  }
+  .comment-preview-item { font-size: 11px; color: #666; margin-bottom: 6px; line-height: 1.4; display: flex; justify-content: space-between; align-items: flex-start; }
+  .comment-text { flex: 1; margin-right: 8px; text-align: left; white-space: normal; word-wrap: break-word; }
   .comment-text strong { color: #444; }
 
   .open-comment-btn {
-    margin-top: 6px; width: 100%; padding: 6px; background: #eef5e6; color: #4a8f6a;
-    border: none; border-radius: 6px; font-size: 12px; font-weight: bold; cursor: pointer;
+    margin-top: 6px; width: 100%; padding: 8px; background: #eef5e6; color: #4a8f6a;
+    border: none; border-radius: 6px; font-size: 13px; font-weight: bold; cursor: pointer;
   }
 
   /* 独立的评论输入弹窗 (覆盖全屏) */
@@ -108,7 +117,13 @@
 <div class="header" id="stats">正在加载...</div>
 <div id="map"></div>
 
-<!-- 独立评论弹窗 -->
+<!-- ★ 独立浮窗 -->
+<div id="customPopup">
+  <button class="close-popup-btn" onclick="closeCustomPopup()">✕</button>
+  <div class="popup-inner" id="customPopupContent"></div>
+</div>
+
+<!-- 独立评论输入弹窗 -->
 <div id="commentModal">
   <div class="comment-modal-box">
     <h3>给这只小昼蛙留言</h3>
@@ -132,15 +147,11 @@ const SUPABASE_URL = 'https://boowpbxtwapcsvmpobim.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_5dgNwsXRanNlIigdlNvWlg_XL-6EYe_';
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-const map = L.map('map', { 
-  maxZoom: 6, 
-  minZoom: 3,
-  autoPanPaddingTopLeft: L.point(20, 110), 
-  autoPanPaddingBottomRight: L.point(20, 100) 
-}).setView([35.0, 105.0], 4);
+// 初始化地图，去掉了 autoPanPadding（因为不用自带弹窗了）
+const map = L.map('map', { maxZoom: 6, minZoom: 3 }).setView([35.0, 105.0], 4);
 
 const frogIcon = L.icon({
-    iconUrl: 'frog1.png', iconSize: [50, 50], iconAnchor: [25, 50], popupAnchor: [0, -50]     
+    iconUrl: 'frog1.png', iconSize: [50, 50], iconAnchor: [25, 50]     
 });
 
 L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
@@ -157,6 +168,8 @@ async function loadMapData() {
 
   const uniqueCities = new Set(data.map(photo => photo.city).filter(Boolean));
   const uniqueRegions = new Set(data.map(photo => photo.country).filter(Boolean));
+  
+  // 你的原版文案，原封不动保留
   document.getElementById('stats').innerHTML = `
     <div style="margin-bottom: 2px;">🍏共计观测到 <span style="font-size: 18px; font-weight: 900; color: #a2d846;">${data.length}</span> 次小昼蛙🐸</div>
     <div>他走过 <span style="font-size: 18px; font-weight: 900; color: #a2d846;">${uniqueCities.size}</span> 个城市 · 跨越了 <span style="font-size: 18px; font-weight: 900; color: #a2d846;">${uniqueRegions.size}</span> 个区域，终于回到你的身边</div>
@@ -185,10 +198,11 @@ async function loadMapData() {
 
       const marker = L.marker([photo.lat + offsetLat, photo.lng + offsetLng], { icon: frogIcon }).addTo(map);
       
+      // ★ 点击青蛙，调用自定义浮窗
       marker.on('click', () => {
         currentPhoto = photo;
         updateLikeButtonState(photo);
-        loadPopupContent(photo, marker);
+        openCustomPopup(photo, marker);
       });
         
       markerRecords.push({ photo: photo, marker: marker });
@@ -196,11 +210,21 @@ async function loadMapData() {
   });
 }
 
-async function loadPopupContent(photo, marker) {
-  let extraInfo = '';
-  if (photo.travel_date) extraInfo += `<div style="font-size: 11px; color: #888; margin-top: 4px;">🗓️ ${photo.travel_date}</div>`;
-  if (photo.story) extraInfo += `<div style="font-size: 12px; color: #444; margin-top: 6px; font-style: italic; text-align: left;">“${photo.story}”</div>`;
+// 打开自定义浮窗
+async function openCustomPopup(photo, marker) {
+  // 点击后，地图飞过去，让青蛙在屏幕中下部
+  const yOffset = -100; 
+  const offsetPoint = map.project(marker.getLatLng(), 5).add([0, yOffset]);
+  const targetLatLng = map.unproject(offsetPoint, 5);
+  map.flyTo(targetLatLng, 5, { animate: true, duration: 0.5 });
 
+  const popupContent = document.getElementById('customPopupContent');
+  const popupDiv = document.getElementById('customPopup');
+  
+  popupContent.innerHTML = '<div style="padding:20px;text-align:center;">加载中...</div>';
+  popupDiv.style.display = 'block';
+
+  // 拉取最新两条评论
   const { data: comments } = await supabaseClient
     .from('comments').select('*').eq('photo_id', photo.id)
     .order('created_at', { ascending: false }).limit(2);
@@ -215,9 +239,7 @@ async function loadPopupContent(photo, marker) {
       
       commentHtml += `
         <div class="comment-preview-item">
-          <div class="comment-text">
-            <strong>${c.nickname}</strong>: ${c.content}
-          </div>
+          <div class="comment-text"><strong>${c.nickname}</strong>: ${c.content}</div>
           <div style="display: flex; align-items: center; gap: 2px; font-size: 10px; color: #999; cursor: pointer; flex-shrink: 0;" onclick="likeComment(${c.id}, this)">
             <span class="comment-heart" style="color: ${heartColor}; font-size: 14px;">${heartIcon}</span>
             <span class="comment-like-count">${c.likes || 0}</span>
@@ -227,27 +249,32 @@ async function loadPopupContent(photo, marker) {
     });
     commentHtml += `</div>`;
   } else {
-    commentHtml = `<div class="comment-preview-item" style="color:#999;"></div>`;
+    commentHtml = `<div class="comment-preview-item" style="color:#999;">还没有人留言，快来抢沙发~</div>`;
   }
 
-  const popupHtml = `
-    <div class="popup-content">
-      <img src="${photo.photo_url}" onclick="window.open(this.src, '_blank')">
-      <div class="city-name">${photo.country} · ${photo.city}</div>
-      <div class="nickname">来自：${photo.nickname || '匿名读者'}</div>
-      ${extraInfo}
-      <div style="margin-top: 6px; font-size: 12px; color: #ff6b6b; font-weight: bold;">
-        ❤️ <span id="popup-like-count-${photo.id}">${photo.likes || 0}</span> 人喜欢
-      </div>
-      
-      <div class="comment-preview">
-        ${commentHtml}
-        <button class="open-comment-btn" onclick="openCommentModal(${photo.id})">想对蛙说</button>
-      </div>
+  let extraInfo = '';
+  if (photo.travel_date) extraInfo += `<div style="font-size: 11px; color: #888; margin-top: 4px;">🗓️ ${photo.travel_date}</div>`;
+  if (photo.story) extraInfo += `<div style="font-size: 12px; color: #444; margin-top: 6px; font-style: italic; text-align: left;">“${photo.story}”</div>`;
+
+  popupContent.innerHTML = `
+    <img src="${photo.photo_url}" onclick="window.open(this.src, '_blank')">
+    <div class="city-name">${photo.country} · ${photo.city}</div>
+    <div class="nickname">来自：${photo.nickname || '匿名读者'}</div>
+    ${extraInfo}
+    <div style="margin-top: 6px; font-size: 12px; color: #ff6b6b; font-weight: bold;">
+      ❤️ <span id="popup-like-count-${photo.id}">${photo.likes || 0}</span> 人喜欢
+    </div>
+    <div class="comment-preview">
+      ${commentHtml}
+      <button class="open-comment-btn" onclick="openCommentModal(${photo.id})">想对蛙说</button>
     </div>
   `;
+}
 
-  marker.bindPopup(popupHtml).openPopup();
+// 关闭浮窗
+function closeCustomPopup() {
+  document.getElementById('customPopup').style.display = 'none';
+  currentPhoto = null;
 }
 
 function openCommentModal(photoId) {
@@ -289,7 +316,7 @@ async function submitComment() {
   } else {
     closeCommentModal();
     const record = markerRecords.find(r => r.photo.id === currentCommentPhotoId);
-    if (record) loadPopupContent(record.photo, record.marker);
+    if (record) openCustomPopup(record.photo, record.marker);
   }
 }
 
@@ -348,7 +375,7 @@ document.getElementById('randomBtn').addEventListener('click', () => {
 });
 
 function flyToRecord(record) {
-  const yOffset = -180; 
+  const yOffset = -100; 
   const offsetPoint = map.project(record.marker.getLatLng(), 5).add([0, yOffset]);
   const targetLatLng = map.unproject(offsetPoint, 5);
 
