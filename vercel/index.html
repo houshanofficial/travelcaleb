@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小昼蛙环球旅行观察纪念手册</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; background: #f5f8f2; margin: 0; padding: 24px 16px; color: #333; }
+  .card { max-width: 480px; margin: 0 auto; background: #fff; border-radius: 16px; padding: 28px 24px; box-shadow: 0 6px 25px rgba(0,0,0,0.05); }
+  label { display: block; font-size: 14px; margin: 16px 0 6px; font-weight: 800; color: #222; }
+  .hint { font-size: 12px; color: #999; margin-top: 4px; }
+  input[type=text], select, input[type=file], textarea { 
+    width: 100%; padding: 10px 12px; border: 2px solid #eef2eb; border-radius: 10px; 
+    font-size: 15px; background: #fafbf9; font-family: inherit; transition: all 0.2s; color: #333;
+  }
+  input[type=text]:focus, select:focus, input[type=file]:focus, textarea:focus {
+    outline: none; border-color: #a2d846; background: #fff; box-shadow: 0 0 0 3px rgba(162, 216, 70, 0.15);
+  }
+  textarea { resize: vertical; min-height: 80px; }
+  select:disabled { background: #f0f2ee; color: #a0a69a; border-color: #eef2eb; }
+  button { 
+    width: 100%; margin-top: 24px; padding: 14px; background: #a2d846; color: #1a2e05; 
+    border: none; border-radius: 10px; font-size: 17px; font-weight: 900; 
+    cursor: pointer; font-family: inherit; transition: all 0.2s;
+  }
+  button:hover:not(:disabled) { background: #b5e65e; transform: translateY(-1px); }
+  button:disabled { background: #e5e8e1; color: #a0a69a; cursor: not-allowed; }
+  #msg { margin-top: 16px; font-size: 14px; text-align: center; min-height: 20px; font-weight: bold; }
+  #feedbackBtn { background: #333; color: #fff; }
+  #feedbackBtn:hover { background: #a2d846; color: #1a2e05; }
+</style>
+</head>
+<body>
+<div class="card" style="padding-top: 36px;">
+  
+  <!-- 标题区域 -->
+  <div style="position: relative; margin-bottom: 30px; padding: 10px 0;">
+    <div style="display: inline-block; background-color: #a2d846; padding: 4px 16px 6px 12px; margin-left: -12px; margin-bottom: 8px; z-index: 1; position: relative;">
+      <span style="font-size: 52px; font-weight: 900; color: #fff; letter-spacing: 4px; line-height: 1;">
+        小昼蛙环球旅行<br><span style="font-size: 42px;">观察纪念手册</span>
+      </span>
+    </div>
+    <div style="font-size: 42px; font-weight: 900; color: #333; text-align: right; letter-spacing: 2px; margin-top: -5px; margin-bottom: 30px; white-space: nowrap;">
+      火热征集中！
+    </div>
+    
+<a href="map.html" target="_blank" style="display: block; width: 100%; padding: 16px 0; background: #a2d846; color: #fff; text-decoration: none; border-radius: 12px; font-size: 17px; font-weight: bold; box-shadow: 0 4px 15px rgba(162, 216, 70, 0.4); transition: all 0.2s; text-align: center;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(162, 216, 70, 0.6)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(162, 216, 70, 0.4)';">
+  点击查看旅行手册内页
+</a>
+  </div>
+  
+  <!-- 表单区域 -->
+  <label>照片</label>
+  <input type="file" id="photo" accept="image/*">
+
+  <label>国家 / 地区</label>
+  <select id="country"><option value="">加载中…</option></select>
+
+  <label>省份 / 直辖市</label>
+  <select id="province" disabled><option value="">请先选国家</option></select>
+
+  <label>城市</label>
+  <select id="city" disabled><option value="">请先选省份</option></select>
+
+  <label>昵称（选填）</label>
+  <input type="text" id="nickname" placeholder="想让大家怎么称呼你" maxlength="20">
+  <div class="hint">不填则显示为“匿名读者”</div>
+
+  <label>旅行日期（选填）</label>
+  <input type="text" id="travel_date" placeholder="例如：2026年8月" maxlength="20">
+
+  <label>旅行小记（选填）</label>
+  <textarea id="story" placeholder="和小昼蛙在旅途中遇到了怎样有趣的故事呢...…" maxlength="200"></textarea>
+
+  <button id="submitBtn" disabled>提交照片</button>
+  <div id="msg"></div>
+
+  <!-- 反馈区域 -->
+  <div style="margin-top: 40px; padding-top: 20px; border-top: 1px dashed #d5e0d8; text-align: center;">
+    <div style="font-size: 13px; color: #7a8f82; margin-bottom: 10px;">没有找到你的打卡城市？</div>
+    <div style="display: flex; gap: 8px;">
+      <input type="text" id="feedbackInput" placeholder="请输入城市名（如：冰岛雷克雅未克）" style="flex: 1;">
+      <button id="feedbackBtn" style="width: auto; margin-top: 0; padding: 0 20px; font-size: 14px;">提交</button>
+    </div>
+    <div id="feedbackMsg" style="font-size: 12px; color: #4a8f6a; margin-top: 8px; min-height: 16px;"></div>
+  </div>
+</div>
+
+<!-- 专属兑换码弹窗 -->
+<div id="ticketModal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.6); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
+  <div style="background: #fff; border-radius: 24px; padding: 32px 24px; max-width: 340px; width: 90%; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.2); position: relative;">
+    <h2 style="margin: 0 0 10px 0; font-size: 22px; color: #333;">提交成功！</h2>
+    <p style="font-size: 14px; color: #666; margin-bottom: 24px; line-height: 1.5;">
+      感谢你的记录！这是你的<br><strong>专属特典兑换码</strong>
+    </p>
+    
+    <div style="background: #eef5e6; border: 2px dashed #a2d846; border-radius: 16px; padding: 20px; margin-bottom: 24px;">
+      <div style="font-size: 12px; color: #7a8f82; margin-bottom: 8px; font-weight: bold; letter-spacing: 2px;">请截图保存此码</div>
+      <div id="displayCode" style="font-size: 32px; font-weight: 900; color: #1a2e05; letter-spacing: 2px; font-family: monospace;"></div>
+    </div>
+    
+    <p style="font-size: 13px; color: #999; margin-bottom: 24px;">
+      * 在今年12月的CP33，凭此码可找老虎的摊位兑换一份神秘特典哦~
+    </p>
+    
+    <button onclick="closeTicket()" style="width: 100%; padding: 14px; background: #a2d846; color: #1a2e05; border: none; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; transition: all 0.2s;">
+      我已截图，关闭
+    </button>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://boowpbxtwapcsvmpobim.supabase.co'; 
+const SUPABASE_ANON_KEY = 'sb_publishable_5dgNwsXRanNlIigdlNvWlg_XL-6EYe_';
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const countrySel = document.getElementById('country');
+const provinceSel = document.getElementById('province');
+const citySel = document.getElementById('city');
+const msg = document.getElementById('msg');
+const btn = document.getElementById('submitBtn');
+
+// 显示/隐藏兑换码弹窗
+function showTicket(code) {
+  document.getElementById('displayCode').innerText = code;
+  document.getElementById('ticketModal').style.display = 'flex';
+}
+function closeTicket() {
+  document.getElementById('ticketModal').style.display = 'none';
+}
+
+// 处理反馈提交
+document.getElementById('feedbackBtn').addEventListener('click', async () => {
+  const input = document.getElementById('feedbackInput');
+  const feedbackMsg = document.getElementById('feedbackMsg');
+  const locationName = input.value.trim();
+
+  if (!locationName) {
+    feedbackMsg.style.color = '#c0392b';
+    feedbackMsg.innerText = '请先输入城市名称哦~';
+    return;
+  }
+
+  feedbackMsg.style.color = '#7a8f82';
+  feedbackMsg.innerText = '正在提交...';
+
+  const { error } = await supabaseClient.from('feedback').insert({ location_name: locationName });
+
+  if (error) {
+    feedbackMsg.style.color = '#c0392b';
+    feedbackMsg.innerText = '提交失败：' + error.message;
+  } else {
+    feedbackMsg.style.color = '#4a8f6a';
+    feedbackMsg.innerText = '收到！老虎会尽快补充以上地点！';
+    input.value = ''; 
+    setTimeout(() => { feedbackMsg.innerText = ''; }, 3000); 
+  }
+});
+
+let allLocations = [];
+
+function setMsg(text, type) {
+  msg.textContent = text;
+  msg.className = type || '';
+}
+
+function checkReady() {
+  const hasPhoto = document.getElementById('photo').files.length > 0;
+  const hasCountry = countrySel.value !== '';
+  const hasProvince = provinceSel.value !== '';
+  const hasCity = citySel.value !== '';
+  btn.disabled = !(hasPhoto && hasCountry && hasProvince && hasCity);
+}
+
+async function loadLocations() {
+  const { data, error } = await supabaseClient
+    .from('locations')
+    .select('country, province, city, lat, lng')
+    .order('country', { ascending: true });
+
+  if (error) {
+    setMsg('地点数据加载失败：' + error.message, 'err');
+    return;
+  }
+  allLocations = data || [];
+
+  let countries = [...new Set(allLocations.map(r => r.country))];
+  const countryOrder = ['中国大陆', '中国（港澳台地区）', '国际城市'];
+  
+  countries.sort((a, b) => {
+    let indexA = countryOrder.indexOf(a);
+    let indexB = countryOrder.indexOf(b);
+    if (indexA === -1) indexA = 99; 
+    if (indexB === -1) indexB = 99;
+    return indexA - indexB;
+  });
+
+  countrySel.innerHTML = '<option value="">请选择大区</option>' +
+    countries.map(c => `<option value="${c}">${c}</option>`).join('');
+}
+
+countrySel.addEventListener('change', () => {
+  const country = countrySel.value;
+  if (!country) {
+    provinceSel.innerHTML = '<option value="">请先选大区</option>';
+    provinceSel.disabled = true;
+    citySel.innerHTML = '<option value="">请先选省份</option>';
+    citySel.disabled = true;
+    checkReady();
+    return;
+  }
+  
+  let provinces = [...new Set(allLocations.filter(r => r.country === country).map(r => r.province))];
+  
+  const regionOrder = [
+    ['北京', '天津', '河北', '山西', '内蒙古'],
+    ['辽宁', '吉林', '黑龙江'],
+    ['上海', '江苏', '浙江', '安徽', '福建', '江西', '山东'],
+    ['河南', '湖北', '湖南'],
+    ['广东', '广西', '海南'],
+    ['重庆', '四川', '贵州', '云南', '西藏'],
+    ['陕西', '甘肃', '青海', '宁夏', '新疆'],
+    ['香港', '澳门', '台湾', '国外']
+  ];
+
+  provinces.sort((a, b) => {
+    const getRegionIndex = (name) => {
+      for (let i = 0; i < regionOrder.length; i++) {
+        if (regionOrder[i].some(keyword => name.includes(keyword))) return i;
+      }
+      return 99; 
+    };
+    let indexA = getRegionIndex(a);
+    let indexB = getRegionIndex(b);
+    if (indexA === indexB) return a.localeCompare(b, 'zh-CN');
+    return indexA - indexB;
+  });
+
+  provinceSel.innerHTML = '<option value="">请选择省份</option>' +
+    provinces.map(p => `<option value="${p}">${p}</option>`).join('');
+  provinceSel.disabled = false;
+  
+  citySel.innerHTML = '<option value="">请先选省份</option>';
+  citySel.disabled = true;
+  checkReady();
+});
+
+provinceSel.addEventListener('change', () => {
+  const country = countrySel.value;
+  const province = provinceSel.value;
+  if (!province) {
+    citySel.innerHTML = '<option value="">请先选省份</option>';
+    citySel.disabled = true;
+    checkReady();
+    return;
+  }
+  
+  const cities = allLocations.filter(r => r.country === country && r.province === province).map(r => r.city);
+  citySel.innerHTML = '<option value="">请选择城市</option>' +
+    cities.map(c => `<option value="${c}">${c}</option>`).join('');
+  citySel.disabled = false;
+  checkReady();
+});
+
+citySel.addEventListener('change', checkReady);
+document.getElementById('photo').addEventListener('change', checkReady);
+
+// ★ 核心上传逻辑（已完全修复）
+btn.addEventListener('click', async () => {
+  const fileInput = document.getElementById('photo');
+  const file = fileInput.files[0];
+  const country = countrySel.value;
+  const province = provinceSel.value;
+  const city = citySel.value;
+  const nickname = document.getElementById('nickname').value.trim() || '匿名读者';
+  const travelDate = document.getElementById('travel_date').value.trim();
+  const story = document.getElementById('story').value.trim();
+
+  if (!file || !country || !province || !city) return;
+
+  btn.disabled = true;
+  setMsg('正在上传…', '');
+
+  try {
+    // 1. 找坐标
+    const loc = allLocations.find(r => r.country === country && r.province === province && r.city === city);
+    if (!loc) throw new Error('未找到该地点坐标');
+
+    // 2. 上传图片到 Supabase Storage
+    const ext = file.name.split('.').pop().toLowerCase();
+    const path = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+    const { error: upErr } = await supabaseClient.storage
+      .from('photos')
+      .upload(path, file, { contentType: file.type, upsert: false });
+    if (upErr) throw upErr;
+
+    // 3. 拿图片链接
+    const { data: urlData } = supabaseClient.storage.from('photos').getPublicUrl(path);
+    const photoUrl = urlData.publicUrl;
+
+    // 4. 生成专属兑换码
+    const randomStr = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const redeemCode = `Calebb-${randomStr}`;
+
+    // 5. 存入数据库（★ 修复：加上了 province 字段，防止报错）
+    const { error: dbErr } = await supabaseClient.from('photos').insert({
+      photo_url: photoUrl,
+      country: country,
+      province: province,
+      city: `${province} · ${city}`, 
+      lat: loc.lat,
+      lng: loc.lng,
+      nickname: nickname,
+      status: 'pending',
+      travel_date: travelDate,
+      story: story,
+      redeem_code: redeemCode
+    });
+    if (dbErr) throw dbErr;
+
+    // 6. 弹出兑换码，清空表单
+    showTicket(redeemCode);
+    setMsg('', ''); 
+    
+    fileInput.value = '';
+    document.getElementById('nickname').value = '';
+    document.getElementById('travel_date').value = '';
+    document.getElementById('story').value = '';
+    countrySel.value = '';
+    provinceSel.value = '';
+    provinceSel.disabled = true;
+    provinceSel.innerHTML = '<option value="">请先选大区</option>';
+    citySel.value = '';
+    citySel.disabled = true;
+    citySel.innerHTML = '<option value="">请先选省份</option>';
+    checkReady();
+
+  } catch (e) {
+    setMsg('上传失败：' + (e.message || e), 'err');
+    btn.disabled = false;
+  }
+}); // ★ 修复：删除了这里多余的一个 });
+
+loadLocations();
+</script>
+</body>
+</html>

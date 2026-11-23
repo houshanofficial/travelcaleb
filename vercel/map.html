@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>小昼蛙环球旅行手册-翻阅页</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  body { margin: 0; padding: 0; font-family: -apple-system, "PingFang SC", sans-serif; overflow: hidden; }
+  #map { width: 100vw; height: 100vh; }
+  
+  /* 顶部统计卡片 */
+  .header {
+    position: absolute; top: 15px; left: 50%; transform: translateX(-50%);
+    background: rgba(255, 255, 255, 0.95); padding: 8px 16px; border-radius: 12px; 
+    box-shadow: 0 4px 10px rgba(162, 216, 70, 0.2); z-index: 1000; font-size: 12px; 
+    color: #333; display: flex; flex-direction: column; gap: 2px; text-align: center; 
+    white-space: nowrap; line-height: 1.2; min-width: 200px; border: 1px solid #f0f5ea;
+    pointer-events: none;
+  }
+
+  /* 弹窗基础样式 */
+  .leaflet-popup-content { width: 250px !important; margin: 10px !important; }
+  .popup-content { text-align: center; }
+  .popup-content img { width: 100%; max-height: 160px; object-fit: cover; border-radius: 8px; margin-bottom: 8px; cursor: zoom-in; }
+  .popup-content .city-name { font-weight: bold; font-size: 14px; color: #333; }
+  .popup-content .nickname { font-size: 12px; color: #666; margin-top: 4px; }
+
+  /* 弹窗内的简易评论预览区 */
+  .comment-preview {
+    margin-top: 8px; border-top: 1px dashed #eee; padding-top: 8px; text-align: left;
+  }
+  .comment-preview-title { font-size: 12px; color: #a2d846; font-weight: bold; margin-bottom: 4px; }
+  .comment-preview-item { font-size: 11px; color: #666; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .comment-preview-item strong { color: #444; }
+  .open-comment-btn {
+    margin-top: 6px; width: 100%; padding: 6px; background: #eef5e6; color: #4a8f6a;
+    border: none; border-radius: 6px; font-size: 12px; font-weight: bold; cursor: pointer;
+  }
+
+  /* 独立的评论输入弹窗 (覆盖全屏) */
+  #commentModal {
+    display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+    background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;
+    backdrop-filter: blur(4px);
+  }
+  .comment-modal-box {
+    background: #fff; border-radius: 16px; padding: 20px; width: 85%; max-width: 320px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+  }
+  .comment-modal-box h3 { margin: 0 0 12px 0; font-size: 16px; color: #333; text-align: center; }
+  .comment-modal-box input, .comment-modal-box textarea {
+    width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ddd;
+    border-radius: 8px; font-size: 14px; font-family: inherit; box-sizing: border-box;
+  }
+  .comment-modal-box textarea { resize: none; height: 80px; }
+  .comment-modal-actions { display: flex; gap: 10px; margin-top: 10px; }
+  .comment-modal-actions button { flex: 1; padding: 10px; border-radius: 8px; font-size: 14px; font-weight: bold; cursor: pointer; border: none; }
+  .btn-cancel { background: #eee; color: #666; }
+  .btn-submit { background: #a2d846; color: #1a2e05; }
+
+  /* 底部按钮 */
+  .bottom-controls {
+    position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 1000;
+    display: flex; align-items: center; gap: 10px; width: max-content; max-width: 95vw; 
+  }
+  .bottom-controls button, .bottom-controls a {
+    border-radius: 30px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.1); 
+    transition: all 0.2s ease; font-family: inherit; display: flex; flex-direction: column; 
+    align-items: center; justify-content: center; line-height: 1; text-decoration: none; 
+    padding: 8px 14px; height: 54px; box-sizing: border-box;
+  }
+  #addRecordBtn { background: #fff; border: 2px solid #a2d846; color: #4a8f6a; }
+  #addRecordBtn .plus-icon { font-size: 16px; height: 18px; display: flex; align-items: center; }
+  #addRecordBtn .add-text { font-size: 11px; margin-top: 3px; }
+  #randomBtn { background: #a2d846; border: 2px solid #a2d846; color: #1a2e05; font-size: 15px; padding: 0 18px; justify-content: center; }
+  #likeBtn { background: #fff; border: 2px solid #ff6b6b; color: #ff6b6b; }
+  #likeBtn .heart-icon { font-size: 16px; height: 18px; display: flex; align-items: center; }
+  #likeBtn .like-text { font-size: 11px; margin-top: 3px; }
+  #likeBtn.disabled { border-color: #ccc; color: #ccc; cursor: not-allowed; box-shadow: none; }
+</style>
+</head>
+<body>
+
+<div class="header" id="stats">正在加载...</div>
+<div id="map"></div>
+
+<!-- 独立评论弹窗 -->
+<div id="commentModal">
+  <div class="comment-modal-box">
+    <h3>给这只小昼蛙留言</h3>
+    <input type="text" id="modalName" placeholder="你的昵称（选填，默认为匿名用户）" maxlength="10">
+    <textarea id="modalText" placeholder="想对这只蛙说..." maxlength="50"></textarea>
+    <div class="comment-modal-actions">
+      <button class="btn-cancel" onclick="closeCommentModal()">取消</button>
+      <button class="btn-submit" onclick="submitComment()">发送</button>
+    </div>
+  </div>
+</div>
+
+<div class="bottom-controls">
+  <a href="旅行小昼蛙.html" id="addRecordBtn"><span class="plus-icon">➕</span><span class="add-text">新增</span></a>
+  <button id="randomBtn">🎲 随机去旅行</button>
+  <button id="likeBtn" class="disabled" onclick="handleLike()"><span class="heart-icon">🤍</span><span class="like-text">喜欢</span></button>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://boowpbxtwapcsvmpobim.supabase.co'; 
+const SUPABASE_ANON_KEY = 'sb_publishable_5dgNwsXRanNlIigdlNvWlg_XL-6EYe_';
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ★ 核心修复 1：全局配置弹窗的“安全距离”
+const map = L.map('map', { 
+  maxZoom: 6, 
+  minZoom: 3,
+  autoPanPaddingTopLeft: L.point(20, 110), // 顶部留 110px 安全区（避开统计卡片）
+  autoPanPaddingBottomRight: L.point(20, 100) // 底部留 100px 安全区（避开按钮）
+}).setView([35.0, 105.0], 4);
+
+const frogIcon = L.icon({
+    iconUrl: 'frog1.png', iconSize: [50, 50], iconAnchor: [25, 50], popupAnchor: [0, -50]     
+});
+
+L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
+  subdomains: ['1', '2', '3', '4'], attribution: '© 高德地图'
+}).addTo(map);
+
+let markerRecords = []; 
+let currentPhoto = null; 
+let currentCommentPhotoId = null; 
+
+async function loadMapData() {
+  const { data, error } = await supabaseClient.from('photos').select('*').eq('status', 'published'); 
+  if (error) { document.getElementById('stats').innerText = '加载失败：' + error.message; return; }
+
+  const uniqueCities = new Set(data.map(photo => photo.city).filter(Boolean));
+  const uniqueRegions = new Set(data.map(photo => photo.country).filter(Boolean));
+  document.getElementById('stats').innerHTML = `
+    <div style="margin-bottom: 2px;">🍏共计观测到 <span style="font-size: 18px; font-weight: 900; color: #a2d846;">${data.length}</span> 次小昼蛙🐸</div>
+    <div>他走过 <span style="font-size: 18px; font-weight: 900; color: #a2d846;">${uniqueCities.size}</span> 个城市 · 跨越了 <span style="font-size: 18px; font-weight: 900; color: #a2d846;">${uniqueRegions.size}</span> 个区域，终于回到你的身边</div>
+  `;
+
+  markerRecords.forEach(record => map.removeLayer(record.marker));
+  markerRecords = [];
+
+  const groupedByLocation = {};
+  data.forEach(photo => {
+    if (!photo.lat || !photo.lng) return; 
+    const key = `${photo.lat.toFixed(3)},${photo.lng.toFixed(3)}`; 
+    if (!groupedByLocation[key]) groupedByLocation[key] = [];
+    groupedByLocation[key].push(photo);
+  });
+
+  Object.values(groupedByLocation).forEach((photosInSameCity) => {
+    photosInSameCity.forEach((photo, index) => {
+      let offsetLat = 0, offsetLng = 0;
+      if (photosInSameCity.length > 1) {
+        const angle = (index / photosInSameCity.length) * Math.PI * 2;
+        const radius = 0.15; 
+        offsetLat = Math.sin(angle) * radius;
+        offsetLng = Math.cos(angle) * radius;
+      }
+
+      const marker = L.marker([photo.lat + offsetLat, photo.lng + offsetLng], { icon: frogIcon }).addTo(map);
+      
+      marker.on('click', () => {
+        currentPhoto = photo;
+        updateLikeButtonState(photo);
+        loadPopupContent(photo, marker);
+      });
+        
+      markerRecords.push({ photo: photo, marker: marker });
+    });
+  });
+}
+
+async function loadPopupContent(photo, marker) {
+  let extraInfo = '';
+  if (photo.travel_date) extraInfo += `<div style="font-size: 11px; color: #888; margin-top: 4px;">🗓️ ${photo.travel_date}</div>`;
+  if (photo.story) extraInfo += `<div style="font-size: 12px; color: #444; margin-top: 6px; font-style: italic; text-align: left;">“${photo.story}”</div>`;
+
+  const { data: comments } = await supabaseClient
+    .from('comments').select('*').eq('photo_id', photo.id)
+    .order('created_at', { ascending: false }).limit(2);
+
+  let commentHtml = '';
+  if (comments && comments.length > 0) {
+    commentHtml = `<div class="comment-preview-title">最新留言：</div>`;
+    comments.forEach(c => {
+      // 检查本地是否点过赞
+      const isLiked = localStorage.getItem('liked_comment_' + c.id);
+      const heartColor = isLiked ? '#ff6b6b' : '#ccc';
+      const heartIcon = isLiked ? '❤️' : '🤍';
+      
+      commentHtml += `
+        <div class="comment-preview-item" style="display: flex; justify-content: space-between; align-items: center;">
+          <div style="flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-right: 8px;">
+            <strong>${c.nickname}</strong>: ${c.content}
+          </div>
+          <div style="display: flex; align-items: center; gap: 2px; font-size: 10px; color: #999; cursor: pointer;" onclick="likeComment(${c.id}, this)">
+            <span class="comment-heart" style="color: ${heartColor}; font-size: 14px;">${heartIcon}</span>
+            <span class="comment-like-count">${c.likes || 0}</span>
+          </div>
+        </div>
+      `;
+    });
+  } else {
+    commentHtml = `<div class="comment-preview-item" style="color:#999;">还没有人留言，快来抢沙发~</div>`;
+  }
+
+  const popupHtml = `
+    <div class="popup-content">
+      <img src="${photo.photo_url}" onclick="window.open(this.src, '_blank')">
+      <div class="city-name">${photo.country} · ${photo.city}</div>
+      <div class="nickname">来自：${photo.nickname || '匿名读者'}</div>
+      ${extraInfo}
+      <div style="margin-top: 6px; font-size: 12px; color: #ff6b6b; font-weight: bold;">
+        ❤️ <span id="popup-like-count-${photo.id}">${photo.likes || 0}</span> 人喜欢
+      </div>
+      
+      <div class="comment-preview">
+        ${commentHtml}
+        <button class="open-comment-btn" onclick="openCommentModal(${photo.id})">想对蛙说</button>
+      </div>
+    </div>
+  `;
+
+  marker.bindPopup(popupHtml).openPopup();
+}
+
+function openCommentModal(photoId) {
+  currentCommentPhotoId = photoId;
+  document.getElementById('modalName').value = '';
+  document.getElementById('modalText').value = '';
+  document.getElementById('commentModal').style.display = 'flex';
+}
+
+function closeCommentModal() {
+  document.getElementById('commentModal').style.display = 'none';
+}
+
+async function submitComment() {
+  const inputName = document.getElementById('modalName').value.trim();
+  let nickname = inputName;
+
+  if (!nickname) {
+    const { count } = await supabaseClient.from('comments').select('*', { count: 'exact', head: true }).eq('photo_id', currentCommentPhotoId); 
+    nickname = `匿名读者${(count || 0) + 1}`;
+  }
+  
+  const content = document.getElementById('modalText').value.trim();
+  if (!content) { alert('留言不能为空哦~'); return; }
+
+  const btn = document.querySelector('.btn-submit');
+  btn.disabled = true;
+  btn.innerText = '发送中...';
+
+  const { error } = await supabaseClient.from('comments').insert({
+    photo_id: currentCommentPhotoId, nickname: nickname, content: content
+  });
+
+  btn.disabled = false;
+  btn.innerText = '发送';
+
+  if (error) {
+    alert('留言失败：' + error.message);
+  } else {
+    closeCommentModal();
+    const record = markerRecords.find(r => r.photo.id === currentCommentPhotoId);
+    if (record) loadPopupContent(record.photo, record.marker);
+  }
+}
+
+function updateLikeButtonState(photo) {
+  const likeBtn = document.getElementById('likeBtn');
+  likeBtn.classList.remove('disabled');
+  const hasLiked = localStorage.getItem('liked_' + photo.id);
+  likeBtn.innerHTML = hasLiked ? '<span class="heart-icon" style="color:#ff6b6b">❤️</span><span class="like-text">已喜欢</span>' : '<span class="heart-icon">🤍</span><span class="like-text">喜欢</span>';
+}
+
+async function handleLike() {
+  const likeBtn = document.getElementById('likeBtn');
+  if (!currentPhoto) { alert('请先在地图上点击一只小昼蛙，再喜欢他哦'); return; }
+  if (localStorage.getItem('liked_' + currentPhoto.id)) { alert('已经喜欢过这只小昼蛙了'); return; }
+
+  likeBtn.disabled = true;
+  const { data, error } = await supabaseClient.from('photos').select('likes').eq('id', currentPhoto.id).single();
+  if (error) { alert('网络开小差了'); likeBtn.disabled = false; return; }
+
+  const newLikes = (data.likes || 0) + 1;
+  const { error: updateError } = await supabaseClient.from('photos').update({ likes: newLikes }).eq('id', currentPhoto.id);
+
+  if (updateError) {
+    alert('保存失败'); likeBtn.disabled = false;
+  } else {
+    localStorage.setItem('liked_' + currentPhoto.id, 'true');
+    const popupCount = document.getElementById('popup-like-count-' + currentPhoto.id);
+    if (popupCount) popupCount.innerText = newLikes;
+    updateLikeButtonState(currentPhoto);
+    likeBtn.disabled = false;
+  }
+}
+
+function shuffleArray(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
+let shuffledPool = []; 
+
+document.getElementById('randomBtn').addEventListener('click', () => {
+  if (markerRecords.length === 0) { alert('目前还没有观察记录哦'); return; }
+  if (markerRecords.length === 1) { flyToRecord(markerRecords[0]); return; }
+
+  if (shuffledPool.length === 0) {
+    shuffledPool = shuffleArray([...markerRecords]);
+    if (currentPhoto && shuffledPool[0].photo.id === currentPhoto.id) {
+      shuffledPool.push(shuffledPool.shift());
+    }
+  }
+  const record = shuffledPool.pop();
+  flyToRecord(record);
+});
+
+function flyToRecord(record) {
+  // ★ 核心修复 2：在飞行时，直接把目标点映射到屏幕偏下的位置
+  const yOffset = -180; 
+  const offsetPoint = map.project(record.marker.getLatLng(), 5).add([0, yOffset]);
+  const targetLatLng = map.unproject(offsetPoint, 5);
+
+  map.flyTo(targetLatLng, 5, { animate: true, duration: 1.5 });
+
+  setTimeout(() => {
+    record.marker.fire('click');
+    currentPhoto = record.photo;
+    updateLikeButtonState(record.photo);
+  }, 1500); 
+}
+
+// ★ 处理评论点赞
+async function likeComment(commentId, element) {
+  // 1. 检查本地是否点过赞
+  if (localStorage.getItem('liked_comment_' + commentId)) {
+    alert('你已经给这条留言点过赞啦~');
+    return;
+  }
+
+  const heartEl = element.querySelector('.comment-heart');
+  const countEl = element.querySelector('.comment-like-count');
+
+  // 2. 动画效果
+  heartEl.innerHTML = '❤️';
+  heartEl.style.color = '#ff6b6b';
+  heartEl.style.transform = 'scale(1.2)';
+  setTimeout(() => heartEl.style.transform = 'scale(1)', 150);
+  element.style.pointerEvents = 'none'; // 防止连点
+
+  // 3. 从数据库拿最新点赞数
+  const { data, error } = await supabaseClient
+    .from('comments')
+    .select('likes')
+    .eq('id', commentId)
+    .single();
+
+  if (error) {
+    alert('网络开小差了，点赞失败。');
+    element.style.pointerEvents = 'auto';
+    return;
+  }
+
+  const newLikes = (data.likes || 0) + 1;
+
+  // 4. 更新数据库
+  const { error: updateError } = await supabaseClient
+    .from('comments')
+    .update({ likes: newLikes })
+    .eq('id', commentId);
+
+  if (updateError) {
+    alert('点赞保存失败，请稍后再试。');
+    element.style.pointerEvents = 'auto';
+  } else {
+    // 5. 更新页面文字并记录到本地
+    countEl.innerText = newLikes;
+    localStorage.setItem('liked_comment_' + commentId, 'true');
+  }
+}
+
+loadMapData();
+</script>
+</body>
+</html>

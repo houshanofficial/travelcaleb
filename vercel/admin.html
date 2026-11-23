@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>手册管理后台</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #f7f9f5; margin: 0; padding: 16px; color: #333;
+    padding-bottom: 60px;
+  }
+  .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .header h1 { font-size: 22px; margin: 0; color: #1a2e05; font-weight: 900; }
+  .refresh-btn { background: #fff; border: 2px solid #eef2eb; padding: 6px 12px; border-radius: 20px; font-size: 14px; cursor: pointer; font-weight: bold; color: #666;}
+  
+  .section-title { font-size: 18px; color: #1a2e05; margin: 24px 0 12px; border-left: 4px solid #a2d846; padding-left: 8px; font-weight: 900; }
+
+  /* 核销面板 */
+  .verify-panel {
+    background: #fff; border-radius: 16px; padding: 20px; margin-bottom: 24px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.05); border: 2px dashed #a2d846;
+  }
+  .verify-panel p { margin: 0 0 12px 0; font-size: 14px; color: #666; font-weight: bold; }
+  .verify-input-group { display: flex; gap: 10px; }
+  .verify-input-group input {
+    flex: 1; padding: 12px; border: 2px solid #eef2eb; border-radius: 10px; font-size: 16px; font-weight: bold; text-transform: uppercase;
+  }
+  .verify-input-group button {
+    padding: 0 24px; background: #333; color: #fff; border: none; border-radius: 10px; font-weight: bold; cursor: pointer;
+  }
+  .verify-input-group button:hover { background: #a2d846; color: #1a2e05; }
+
+  /* 照片卡片 */
+  .card {
+    background: #fff; border-radius: 12px; padding: 16px; margin-bottom: 16px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+  }
+  .card img { width: 100%; max-height: 300px; object-fit: cover; border-radius: 8px; margin-bottom: 12px; }
+  .info-row { font-size: 14px; margin-bottom: 8px; color: #555; }
+  .info-row strong { color: #222; }
+  .story-text { background: #f9f9f9; padding: 10px; border-radius: 8px; font-size: 14px; color: #666; margin-bottom: 12px; border-left: 3px solid #a2d846; }
+  
+  .actions { display: flex; gap: 10px; }
+  .btn { flex: 1; padding: 12px; border: none; border-radius: 8px; font-size: 16px; font-weight: 900; cursor: pointer; text-align: center; }
+  .btn-pass { background: #a2d846; color: #1a2e05; }
+  .btn-del { background: #ffebee; color: #c0392b; }
+  .btn:disabled { opacity: 0.5; }
+
+  /* 反馈列表 */
+  .feedback-item {
+    background: #fff; border-radius: 8px; padding: 12px 16px; margin-bottom: 8px;
+    display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  }
+  .feedback-text { font-size: 15px; color: #333; font-weight: bold; }
+  .btn-clear { background: none; border: none; color: #999; font-size: 14px; cursor: pointer; padding: 4px; }
+  .btn-clear:hover { color: #c0392b; }
+  
+  .empty { text-align: center; color: #888; margin-top: 20px; font-size: 14px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🐸 管理后台</h1>
+  <button class="refresh-btn" onclick="loadAllData()">刷新 ↻</button>
+</div>
+
+<!-- ★ 新增：核销查询面板 -->
+<div class="verify-panel">
+  <p>🎁 线下展会兑换码核销：</p>
+  <div class="verify-input-group">
+    <input type="text" id="verifyCode" placeholder="输入 Calebb-XXXX">
+    <button onclick="verifyCode()">查询</button>
+  </div>
+  <div id="verifyResult" style="margin-top: 12px; font-weight: bold;"></div>
+</div>
+
+<!-- 照片审核区 -->
+<div class="section-title">待审核照片</div>
+<div id="photo-list"></div>
+
+<!-- 读者反馈区 -->
+<div class="section-title">读者反馈地点</div>
+<div id="feedback-list"></div>
+
+<script>
+const SUPABASE_URL = 'https://boowpbxtwapcsvmpobim.supabase.co'; 
+const SUPABASE_ANON_KEY = 'sb_publishable_5dgNwsXRanNlIigdlNvWlg_XL-6EYe_';
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const photoListEl = document.getElementById('photo-list');
+const feedbackListEl = document.getElementById('feedback-list');
+
+async function loadAllData() {
+  loadPhotos();
+  loadFeedback();
+}
+
+// ================= 1. 核销查询功能 =================
+async function verifyCode() {
+  const codeInput = document.getElementById('verifyCode').value.trim().toUpperCase();
+  const resultEl = document.getElementById('verifyResult');
+
+  if (!codeInput) {
+    resultEl.innerHTML = '<span style="color:#c0392b;">请输入兑换码！</span>';
+    return;
+  }
+
+  resultEl.innerHTML = '<span style="color:#666;">正在查询...</span>';
+
+  // 去数据库里找有没有这个兑换码
+  const { data, error } = await supabaseClient
+    .from('photos')
+    .select('*')
+    .eq('redeem_code', codeInput)
+    .single();
+
+  if (error || !data) {
+    resultEl.innerHTML = '<span style="color:#c0392b;">❌ 查无此码！请确认读者输入是否正确，或照片是否成功上传。</span>';
+    return;
+  }
+
+  // 找到了！展示凭证
+  resultEl.innerHTML = `
+    <div style="background: #eef5e6; border-radius: 12px; padding: 16px; border: 2px solid #a2d846; text-align: left; display: flex; gap: 12px; align-items: center;">
+      <img src="${data.photo_url}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 8px;">
+      <div>
+        <div style="color: #1a2e05; font-size: 18px; font-weight: 900; margin-bottom: 4px;">✅ 核销成功！</div>
+        <div style="font-size: 13px; color: #555;">地点：${data.city}</div>
+        <div style="font-size: 13px; color: #555;">上传者：${data.nickname || '匿名'}</div>
+        <div style="font-size: 13px; color: #999; margin-top: 4px;">请对照左侧照片发放礼物</div>
+      </div>
+    </div>
+  `;
+}
+
+// ================= 2. 加载待审核照片 =================
+async function loadPhotos() {
+  photoListEl.innerHTML = '<div class="empty">正在加载...</div>';
+  
+  const { data, error } = await supabaseClient
+    .from('photos')
+    .select('*')
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    photoListEl.innerHTML = `<div class="empty">加载失败：${error.message}</div>`;
+    return;
+  }
+
+  if (!data || data.length === 0) {
+    photoListEl.innerHTML = '<div class="empty">太棒了，目前没有待审核的照片！</div>';
+    return;
+  }
+
+  photoListEl.innerHTML = '';
+  data.forEach(photo => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <img src="${photo.photo_url}" alt="打卡照">
+      <div class="info-row"><strong>📍 地点：</strong> ${photo.country} · ${photo.city}</div>
+      <div class="info-row"><strong>👤 上传者：</strong> ${photo.nickname || '匿名读者'}</div>
+      <div class="info-row" style="color: #a2d846; font-weight: bold;"><strong>🎟️ 兑换码：</strong> ${photo.redeem_code || '无'}</div>
+      ${photo.travel_date ? `<div class="info-row"><strong>🗓️ 日期：</strong> ${photo.travel_date}</div>` : ''}
+      ${photo.story ? `<div class="story-text">“${photo.story}”</div>` : ''}
+      <div class="actions">
+        <button class="btn btn-del" onclick="updatePhotoStatus(${photo.id}, 'rejected', this)">❌ 拒绝</button>
+        <button class="btn btn-pass" onclick="updatePhotoStatus(${photo.id}, 'published', this)">✅ 通过发布</button>
+      </div>
+    `;
+    photoListEl.appendChild(card);
+  });
+}
+
+async function updatePhotoStatus(id, newStatus, btnElement) {
+  const buttons = btnElement.parentElement.querySelectorAll('button');
+  buttons.forEach(b => b.disabled = true);
+  btnElement.innerText = '处理中...';
+
+  const { error } = await supabaseClient
+    .from('photos')
+    .update({ status: newStatus })
+    .eq('id', id);
+
+  if (error) {
+    alert('操作失败：' + error.message);
+    buttons.forEach(b => b.disabled = false);
+    return;
+  }
+
+  const card = btnElement.closest('.card');
+  card.style.opacity = '0';
+  setTimeout(() => {
+    card.remove();
+    if (photoListEl.children.length === 0) {
+      photoListEl.innerHTML = '<div class="empty">太棒了，目前没有待审核的照片！</div>';
+    }
+  }, 300);
+}
+
+// ================= 3. 加载读者反馈 =================
+async function loadFeedback() {
+  feedbackListEl.innerHTML = '<div class="empty">正在加载...</div>';
+
+  const { data, error } = await supabaseClient
+    .from('feedback')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    feedbackListEl.innerHTML = `<div class="empty">加载失败：${error.message}</div>`;
+    return;
+  }
+
+  if (!data || data.length === 0) {
+    feedbackListEl.innerHTML = '<div class="empty">目前没有读者提交新地点。</div>';
+    return;
+  }
+
+  feedbackListEl.innerHTML = '';
+  data.forEach(item => {
+    const div = document.createElement('div');
+    div.className = 'feedback-item';
+    const date = new Date(item.created_at).toLocaleDateString();
+    
+    div.innerHTML = `
+      <div class="feedback-text">📍 ${item.location_name} <span style="font-size:12px;color:#999;margin-left:8px;font-weight:normal;">${date}</span></div>
+      <button class="btn-clear" onclick="deleteFeedback(${item.id}, this)">已处理 / 删除</button>
+    `;
+    feedbackListEl.appendChild(div);
+  });
+}
+
+async function deleteFeedback(id, btnElement) {
+  btnElement.innerText = '删除中...';
+  btnElement.disabled = true;
+
+  const { error } = await supabaseClient
+    .from('feedback')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    alert('删除失败：' + error.message);
+    btnElement.innerText = '已处理 / 删除';
+    btnElement.disabled = false;
+    return;
+  }
+
+  const item = btnElement.closest('.feedback-item');
+  item.style.opacity = '0';
+  setTimeout(() => {
+    item.remove();
+    if (feedbackListEl.children.length === 0) {
+      feedbackListEl.innerHTML = '<div class="empty">目前没有读者提交新地点。</div>';
+    }
+  }, 300);
+}
+
+loadAllData();
+</script>
+</body>
+</html>
