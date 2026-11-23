@@ -114,6 +114,13 @@
 </head>
 <body>
 
+<!-- 背景音乐 -->
+<audio id="bgm" loop preload="auto">
+  <source src="bgm.mp3" type="audio/mpeg">
+</audio>
+
+<button id="musicBtn" onclick="toggleMusic()" style="position: absolute; top: 15px; right: 15px; z-index: 1000; background: rgba(255,255,255,0.9); border: 2px solid #a2d846; color: #4a8f6a; width: 36px; height: 36px; border-radius: 50%; font-size: 16px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.1); transition: all 0.2s; display: flex; align-items: center; justify-content: center;">🎵</button>
+  
 <div class="header" id="stats">正在加载...</div>
 <div id="map"></div>
 
@@ -458,10 +465,57 @@ async function likeComment(commentId, element) {
   }
 }
 
+const bgm = document.getElementById('bgm');
+const musicBtn = document.getElementById('musicBtn');
+const savedTime = parseFloat(sessionStorage.getItem('bgmTime')) || 0;
+const wasPlaying = sessionStorage.getItem('bgmPlaying') === 'true';
+
+if (wasPlaying && savedTime > 0) {
+  bgm.currentTime = savedTime;
+  bgm.play().then(() => {
+    musicBtn.innerHTML = '🎶';
+    musicBtn.style.background = '#a2d846';
+    musicBtn.style.color = '#fff';
+  }).catch(() => {
+    sessionStorage.setItem('bgmPlaying', 'false');
+  });
+}
+
+bgm.addEventListener('timeupdate', () => {
+  if (!bgm.paused) {
+    sessionStorage.setItem('bgmTime', bgm.currentTime);
+  }
+});
+
+function toggleMusic() {
+  if (bgm.paused) {
+    bgm.play();
+    musicBtn.innerHTML = '🎶';
+    musicBtn.style.background = '#a2d846';
+    musicBtn.style.color = '#fff';
+    sessionStorage.setItem('bgmPlaying', 'true');
+  } else {
+    bgm.pause();
+    musicBtn.innerHTML = '🎵';
+    musicBtn.style.background = 'rgba(255,255,255,0.9)';
+    musicBtn.style.color = '#4a8f6a';
+    sessionStorage.setItem('bgmPlaying', 'false');
+  }
+}
+
+// ★ 地图页可能有各种点击跳转（比如去新增页）
+document.querySelectorAll('a').forEach(link => {
+  link.addEventListener('click', () => {
+    sessionStorage.setItem('bgmTime', bgm.currentTime);
+    sessionStorage.setItem('bgmPlaying', bgm.paused ? 'false' : 'true');
+  });
+});
+  
 loadMapData();
 </script>
 </body>
 </html>
+
 
 
 
