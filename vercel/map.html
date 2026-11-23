@@ -160,7 +160,6 @@ let currentPhoto = null;
 let currentCommentPhotoId = null; 
 
 async function loadMapData() {
-  // 最基础的查询，绝对不会报 400
   const { data, error } = await supabaseClient
     .from('photos')
     .select('*')
@@ -171,6 +170,7 @@ async function loadMapData() {
     return; 
   }
 
+  // 顶部统计
   const uniqueCities = new Set(data.map(photo => photo.city).filter(Boolean));
   const uniqueRegions = new Set(data.map(photo => photo.country).filter(Boolean));
   document.getElementById('stats').innerHTML = `
@@ -178,31 +178,30 @@ async function loadMapData() {
     <div>他走过 <span style="font-size: 18px; font-weight: 900; color: #a2d846;">${uniqueCities.size}</span> 个城市 · 跨越了 <span style="font-size: 18px; font-weight: 900; color: #a2d846;">${uniqueRegions.size}</span> 个区域，终于回到你的身边</div>
   `;
 
-  // 清除旧的青蛙标记
   markerRecords.forEach(record => map.removeLayer(record.marker));
   markerRecords = [];
 
-  // ★ 直接从 "四川省 · 成都市" 中切出省份
-  const visitedProvinces = new Set();
-  data.forEach(photo => {
-    if (photo.city && photo.city.includes('·')) {
-      let prov = photo.city.split('·')[0].trim(); // 拿到 "四川省"
-      prov = prov.replace(/\s+/g, ''); // 去掉空格
-      visitedProvinces.add(prov);
-    }
-  });
-
-  console.log("✅ 成功切出的省份列表：", Array.from(visitedProvinces));
-
-  // 绘制或更新地图板块
+  // 拉取地图数据并绘制
   if (!window.chinaGeoJsonLayer) {
     fetch('https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json')
       .then(res => res.json())
       .then(geoJsonData => {
         window.chinaGeoJsonLayer = L.geoJSON(geoJsonData, {
           style: function (feature) {
-            const provName = feature.properties.name.replace(/\s+/g, ''); 
-            const isVisited = visitedProvinces.has(provName);
+            // ★ 核心：使用 Turf.js 来判断青蛙的经纬度是否在省份内部
+            // 或者简单点：判断是否有照片的坐标落在这个特征附近
+            let isVisited = false;
+            data.forEach(photo => {
+              if (photo.lat && photo.lng) {
+                // 创建坐标点
+                const pt = turf.point([photo.lng, photo.lat]);
+                // 如果这个坐标在这个省份的边界内
+                if (turf.booleanPointInPolygon(pt, feature)) {
+                  isVisited = true;
+                }
+              }
+            });
+
             return {
               color: '#d5e0d8',
               weight: 1,
@@ -216,15 +215,6 @@ async function loadMapData() {
         window.chinaGeoJsonLayer.bringToBack();
         window.chinaGeoJsonLayer.setZIndex(2); 
       });
-  } else {
-    window.chinaGeoJsonLayer.eachLayer(function (layer) {
-      const provName = layer.feature.properties.name.replace(/\s+/g, '');
-      const isVisited = visitedProvinces.has(provName);
-      layer.setStyle({
-        fillColor: isVisited ? '#a2d846' : '#ffffff',
-        fillOpacity: isVisited ? 0.6 : 0.2
-      });
-    });
   }
 
   // 打点（保持不变）
@@ -471,6 +461,7 @@ loadMapData();
 </script>
 </body>
 </html>
+
 
 
 
