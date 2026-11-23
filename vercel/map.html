@@ -160,15 +160,16 @@ let currentPhoto = null;
 let currentCommentPhotoId = null; 
 
 async function loadMapData() {
-  // 修改：通过 photos.city 去关联 locations 表，把对应的 province 一起查出来
+  // 最基础的查询，绝对不会报 400
   const { data, error } = await supabaseClient
     .from('photos')
-    .select(`
-      *,
-      locations!inner(province)
-    `)
+    .select('*')
     .eq('status', 'published'); 
-  if (error) { document.getElementById('stats').innerText = '加载失败：' + error.message; return; }
+
+  if (error) { 
+    document.getElementById('stats').innerText = '加载失败：' + error.message; 
+    return; 
+  }
 
   const uniqueCities = new Set(data.map(photo => photo.city).filter(Boolean));
   const uniqueRegions = new Set(data.map(photo => photo.country).filter(Boolean));
@@ -181,25 +182,17 @@ async function loadMapData() {
   markerRecords.forEach(record => map.removeLayer(record.marker));
   markerRecords = [];
 
-  // ★ 新增：提取所有有照片的省份
-  // 注意：你的数据库里 city 存的是 "四川省 · 成都市"
-  // 我们需要用 split(' · ') 把前面的省份切出来
-  // 清除旧的青蛙标记
-  markerRecords.forEach(record => map.removeLayer(record.marker));
-  markerRecords = [];
-
-  // ★ 直接从关联查询出来的数据中提取省份
+  // ★ 直接从 "四川省 · 成都市" 中切出省份
   const visitedProvinces = new Set();
   data.forEach(photo => {
-    // 注意：Supabase 关联查询如果返回的是数组，取第0个；如果是对象就直接取
-    const provInfo = Array.isArray(photo.locations) ? photo.locations[0] : photo.locations;
-    if (provInfo && provInfo.province) {
-      // 去掉可能存在的空格
-      visitedProvinces.add(provInfo.province.replace(/\s+/g, ''));
+    if (photo.city && photo.city.includes('·')) {
+      let prov = photo.city.split('·')[0].trim(); // 拿到 "四川省"
+      prov = prov.replace(/\s+/g, ''); // 去掉空格
+      visitedProvinces.add(prov);
     }
   });
 
-  console.log("自动提取的省份列表：", Array.from(visitedProvinces));
+  console.log("✅ 成功切出的省份列表：", Array.from(visitedProvinces));
 
   // 绘制或更新地图板块
   if (!window.chinaGeoJsonLayer) {
@@ -209,7 +202,6 @@ async function loadMapData() {
         window.chinaGeoJsonLayer = L.geoJSON(geoJsonData, {
           style: function (feature) {
             const provName = feature.properties.name.replace(/\s+/g, ''); 
-            // 判断官方地图的名字是否在我们的打卡列表里
             const isVisited = visitedProvinces.has(provName);
             return {
               color: '#d5e0d8',
@@ -222,6 +214,7 @@ async function loadMapData() {
           interactive: false
         }).addTo(map);
         window.chinaGeoJsonLayer.bringToBack();
+        window.chinaGeoJsonLayer.setZIndex(2); 
       });
   } else {
     window.chinaGeoJsonLayer.eachLayer(function (layer) {
@@ -234,6 +227,7 @@ async function loadMapData() {
     });
   }
 
+  // 打点（保持不变）
   const groupedByLocation = {};
   data.forEach(photo => {
     if (!photo.lat || !photo.lng) return; 
@@ -477,6 +471,7 @@ loadMapData();
 </script>
 </body>
 </html>
+
 
 
 
