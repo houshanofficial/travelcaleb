@@ -7,6 +7,8 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- 引入省份边界数据 -->
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/map/js/china.js"></script>
 <style>
   body { margin: 0; padding: 0; font-family: -apple-system, "PingFang SC", sans-serif; overflow: hidden; }
   #map { width: 100vw; height: 100vh; }
@@ -21,6 +23,11 @@
     pointer-events: none;
   }
 
+  /* 省份点亮样式 */
+  .province-polygon {
+    transition: fill 0.5s ease; /* 让点亮有一个渐变的动画感 */
+  }
+  
   /* 弹窗基础样式 */
   .leaflet-popup-content { width: 250px !important; margin: 10px !important; }
   .popup-content { text-align: center; }
@@ -162,8 +169,56 @@ async function loadMapData() {
     <div>他走过 <span style="font-size: 18px; font-weight: 900; color: #a2d846;">${uniqueCities.size}</span> 个城市 · 跨越了 <span style="font-size: 18px; font-weight: 900; color: #a2d846;">${uniqueRegions.size}</span> 个区域，终于回到你的身边</div>
   `;
 
+  // 清除旧的青蛙标记
   markerRecords.forEach(record => map.removeLayer(record.marker));
   markerRecords = [];
+
+  // ★ 新增：提取所有有照片的省份
+  // 注意：你的数据库里 city 存的是 "四川省 · 成都市"
+  // 我们需要用 split(' · ') 把前面的省份切出来
+  const visitedProvinces = new Set();
+  data.forEach(photo => {
+    if (photo.city && photo.city.includes('·')) {
+      const prov = photo.city.split('·')[0].trim(); // 拿到 "四川省"
+      visitedProvinces.add(prov);
+    }
+  });
+
+  // ★ 新增：绘制或更新中国地图板块
+  // 如果地图板块还没画出来，我们画出来
+  if (!window.chinaGeoJsonLayer) {
+    fetch('https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json')
+      .then(res => res.json())
+      .then(geoJsonData => {
+        window.chinaGeoJsonLayer = L.geoJSON(geoJsonData, {
+          style: function (feature) {
+            const provName = feature.properties.name; // 比如 "四川省"、"北京市"
+            // 如果这个省份在已打卡的列表里，就点亮成嫩绿色
+            const isVisited = visitedProvinces.has(provName);
+            return {
+              color: '#d5e0d8',          // 边界线颜色（浅灰）
+              weight: 1,                 // 边界线粗细
+              fillColor: isVisited ? '#a2d846' : '#ffffff', // 点亮色 vs 默认色
+              fillOpacity: isVisited ? 0.6 : 0.2,           // 点亮透明度 vs 默认透明度
+              className: 'province-polygon'
+            };
+          },
+          interactive: false // 不让它挡住鼠标点击（让青蛙可以被点到）
+        }).addTo(map);
+        // 把地图图层放到最底层，不要盖住青蛙
+        window.chinaGeoJsonLayer.bringToBack();
+      });
+  } else {
+    // 如果已经画过了，我们只更新颜色（这样读者传了新照片不用刷新网页就能看到点亮）
+    window.chinaGeoJsonLayer.eachLayer(function (layer) {
+      const provName = layer.feature.properties.name;
+      const isVisited = visitedProvinces.has(provName);
+      layer.setStyle({
+        fillColor: isVisited ? '#a2d846' : '#ffffff',
+        fillOpacity: isVisited ? 0.6 : 0.2
+      });
+    });
+  }
 
   const groupedByLocation = {};
   data.forEach(photo => {
@@ -408,3 +463,4 @@ loadMapData();
 </script>
 </body>
 </html>
+
