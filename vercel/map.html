@@ -33,8 +33,29 @@
     margin-top: 8px; border-top: 1px dashed #eee; padding-top: 8px; text-align: left;
   }
   .comment-preview-title { font-size: 12px; color: #a2d846; font-weight: bold; margin-bottom: 4px; }
-  .comment-preview-item { font-size: 11px; color: #666; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .comment-preview-item strong { color: #444; }
+  
+  /* ★ 修改 1：评论列表容器，限制高度并开启上下滑动 */
+  .comment-list-wrap {
+    max-height: 110px; 
+    overflow-y: auto;  
+    margin-top: 4px;
+    padding-right: 4px;
+  }
+  /* 美化滚动条 */
+  .comment-list-wrap::-webkit-scrollbar { width: 4px; }
+  .comment-list-wrap::-webkit-scrollbar-thumb { background: #d5e0d8; border-radius: 4px; }
+
+  /* ★ 修改 2：单条评论自动换行 */
+  .comment-preview-item { 
+    font-size: 11px; color: #666; margin-bottom: 6px; line-height: 1.4;
+    display: flex; justify-content: space-between; align-items: flex-start;
+  }
+  .comment-text {
+    flex: 1; margin-right: 8px; text-align: left;
+    white-space: normal; word-wrap: break-word; 
+  }
+  .comment-text strong { color: #444; }
+
   .open-comment-btn {
     margin-top: 6px; width: 100%; padding: 6px; background: #eef5e6; color: #4a8f6a;
     border: none; border-radius: 6px; font-size: 12px; font-weight: bold; cursor: pointer;
@@ -111,12 +132,11 @@ const SUPABASE_URL = 'https://boowpbxtwapcsvmpobim.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_5dgNwsXRanNlIigdlNvWlg_XL-6EYe_';
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// ★ 核心修复 1：全局配置弹窗的“安全距离”
 const map = L.map('map', { 
   maxZoom: 6, 
   minZoom: 3,
-  autoPanPaddingTopLeft: L.point(20, 110), // 顶部留 110px 安全区（避开统计卡片）
-  autoPanPaddingBottomRight: L.point(20, 100) // 底部留 100px 安全区（避开按钮）
+  autoPanPaddingTopLeft: L.point(20, 110), 
+  autoPanPaddingBottomRight: L.point(20, 100) 
 }).setView([35.0, 105.0], 4);
 
 const frogIcon = L.icon({
@@ -187,25 +207,25 @@ async function loadPopupContent(photo, marker) {
 
   let commentHtml = '';
   if (comments && comments.length > 0) {
-    commentHtml = `<div class="comment-preview-title">最新留言：</div>`;
+    commentHtml = `<div class="comment-preview-title">最新留言：</div><div class="comment-list-wrap">`;
     comments.forEach(c => {
-      // 检查本地是否点过赞
       const isLiked = localStorage.getItem('liked_comment_' + c.id);
       const heartColor = isLiked ? '#ff6b6b' : '#ccc';
       const heartIcon = isLiked ? '❤️' : '🤍';
       
       commentHtml += `
-        <div class="comment-preview-item" style="display: flex; justify-content: space-between; align-items: center;">
-          <div style="flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-right: 8px;">
+        <div class="comment-preview-item">
+          <div class="comment-text">
             <strong>${c.nickname}</strong>: ${c.content}
           </div>
-          <div style="display: flex; align-items: center; gap: 2px; font-size: 10px; color: #999; cursor: pointer;" onclick="likeComment(${c.id}, this)">
+          <div style="display: flex; align-items: center; gap: 2px; font-size: 10px; color: #999; cursor: pointer; flex-shrink: 0;" onclick="likeComment(${c.id}, this)">
             <span class="comment-heart" style="color: ${heartColor}; font-size: 14px;">${heartIcon}</span>
             <span class="comment-like-count">${c.likes || 0}</span>
           </div>
         </div>
       `;
     });
+    commentHtml += `</div>`;
   } else {
     commentHtml = `<div class="comment-preview-item" style="color:#999;">还没有人留言，快来抢沙发~</div>`;
   }
@@ -328,7 +348,6 @@ document.getElementById('randomBtn').addEventListener('click', () => {
 });
 
 function flyToRecord(record) {
-  // ★ 核心修复 2：在飞行时，直接把目标点映射到屏幕偏下的位置
   const yOffset = -180; 
   const offsetPoint = map.project(record.marker.getLatLng(), 5).add([0, yOffset]);
   const targetLatLng = map.unproject(offsetPoint, 5);
@@ -342,9 +361,7 @@ function flyToRecord(record) {
   }, 1500); 
 }
 
-// ★ 处理评论点赞
 async function likeComment(commentId, element) {
-  // 1. 检查本地是否点过赞
   if (localStorage.getItem('liked_comment_' + commentId)) {
     alert('你已经给这条留言点过赞啦~');
     return;
@@ -353,14 +370,12 @@ async function likeComment(commentId, element) {
   const heartEl = element.querySelector('.comment-heart');
   const countEl = element.querySelector('.comment-like-count');
 
-  // 2. 动画效果
   heartEl.innerHTML = '❤️';
   heartEl.style.color = '#ff6b6b';
   heartEl.style.transform = 'scale(1.2)';
   setTimeout(() => heartEl.style.transform = 'scale(1)', 150);
-  element.style.pointerEvents = 'none'; // 防止连点
+  element.style.pointerEvents = 'none'; 
 
-  // 3. 从数据库拿最新点赞数
   const { data, error } = await supabaseClient
     .from('comments')
     .select('likes')
@@ -375,7 +390,6 @@ async function likeComment(commentId, element) {
 
   const newLikes = (data.likes || 0) + 1;
 
-  // 4. 更新数据库
   const { error: updateError } = await supabaseClient
     .from('comments')
     .update({ likes: newLikes })
@@ -385,7 +399,6 @@ async function likeComment(commentId, element) {
     alert('点赞保存失败，请稍后再试。');
     element.style.pointerEvents = 'auto';
   } else {
-    // 5. 更新页面文字并记录到本地
     countEl.innerText = newLikes;
     localStorage.setItem('liked_comment_' + commentId, 'true');
   }
