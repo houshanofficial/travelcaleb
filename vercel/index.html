@@ -33,6 +33,14 @@
 </style>
 </head>
 <body>
+
+<!-- 背景音乐 -->
+<audio id="bgm" loop preload="auto">
+  <source src="bgm.mp3" type="audio/mpeg">
+</audio>
+
+<button id="musicBtn" onclick="toggleMusic()" style="position: fixed; top: 20px; right: 20px; z-index: 9999; background: rgba(255,255,255,0.9); border: 2px solid #a2d846; color: #4a8f6a; width: 44px; height: 44px; border-radius: 50%; font-size: 20px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.1); transition: all 0.2s; display: flex; align-items: center; justify-content: center;">🎵</button>
+ 
 <div class="card" style="padding-top: 36px;">
   
   <!-- 标题区域 -->
@@ -343,7 +351,60 @@ btn.addEventListener('click', async () => {
   }
 }); // ★ 修复：删除了这里多余的一个 });
 
+const bgm = document.getElementById('bgm');
+const musicBtn = document.getElementById('musicBtn');
+
+// 读取上次的播放状态和进度
+const savedTime = parseFloat(sessionStorage.getItem('bgmTime')) || 0;
+const wasPlaying = sessionStorage.getItem('bgmPlaying') === 'true';
+
+// 如果上次是播放状态，尝试恢复
+if (wasPlaying && savedTime > 0) {
+  bgm.currentTime = savedTime;
+  // 注意：大部分手机浏览器在此处直接 play() 会被拦截，所以需要处理 Promise
+  bgm.play().then(() => {
+    musicBtn.innerHTML = '🎶';
+    musicBtn.style.background = '#a2d846';
+    musicBtn.style.color = '#fff';
+  }).catch(() => {
+    // 如果浏览器拦截了自动播放，让用户点一下
+    sessionStorage.setItem('bgmPlaying', 'false'); // 重置状态
+  });
+}
+
+// 监听播放，实时保存进度
+bgm.addEventListener('timeupdate', () => {
+  if (!bgm.paused) {
+    sessionStorage.setItem('bgmTime', bgm.currentTime);
+  }
+});
+
+function toggleMusic() {
+  if (bgm.paused) {
+    bgm.play();
+    musicBtn.innerHTML = '🎶';
+    musicBtn.style.background = '#a2d846';
+    musicBtn.style.color = '#fff';
+    sessionStorage.setItem('bgmPlaying', 'true');
+  } else {
+    bgm.pause();
+    musicBtn.innerHTML = '🎵';
+    musicBtn.style.background = 'rgba(255,255,255,0.9)';
+    musicBtn.style.color = '#4a8f6a';
+    sessionStorage.setItem('bgmPlaying', 'false');
+  }
+}
+
+// ★ 点击链接跳转前，保存进度
+document.querySelectorAll('a').forEach(link => {
+  link.addEventListener('click', () => {
+    sessionStorage.setItem('bgmTime', bgm.currentTime);
+    sessionStorage.setItem('bgmPlaying', bgm.paused ? 'false' : 'true');
+  });
+});
+ 
 loadLocations();
 </script>
 </body>
+
 </html>
