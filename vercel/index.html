@@ -78,7 +78,7 @@
 
   <label>昵称（选填）</label>
   <input type="text" id="nickname" placeholder="想让大家怎么称呼你" maxlength="20">
-  <div class="hint">不填则显示为“匿名读者”</div>
+  <div class="hint">不填则显示为“匿名观察员”</div>
 
   <label>旅行日期（选填）</label>
   <input type="text" id="travel_date" placeholder="例如：2026年8月" maxlength="20">
@@ -286,7 +286,7 @@ btn.addEventListener('click', async () => {
   const country = countrySel.value;
   const province = provinceSel.value;
   const city = citySel.value;
-  const nickname = document.getElementById('nickname').value.trim() || '匿名读者';
+  const nickname = document.getElementById('nickname').value.trim() || '匿名观察员';
   const travelDate = document.getElementById('travel_date').value.trim();
   const story = document.getElementById('story').value.trim();
 
@@ -447,6 +447,7 @@ window.addEventListener('scroll', function() {
 </body>
 
 </html>
+
 
 
 
