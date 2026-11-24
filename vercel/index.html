@@ -301,11 +301,30 @@ btn.addEventListener('click', async () => {
     if (!loc) throw new Error('未找到该地点坐标');
 
     // 2. 上传图片到 Supabase Storage
-    const ext = file.name.split('.').pop().toLowerCase();
+   let finalFile = file; // 准备一个最终要上传的文件
+
+// 如果读者选的是 HEIC/HEIF，就自动转成 JPG
+if (file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')) {
+  setMsg('正在转换图片格式...', ''); // 给读者一点提示
+  try {
+    const conversionResult = await heic2any({
+      blob: file,
+      toType: 'image/jpeg',
+      quality: 0.8 // 压缩一下，省空间
+    });
+    // 把转换后的结果包装成一个新文件，名字后缀改成 .jpg
+    finalFile = new File([conversionResult], file.name.replace(/\.(heic|heif)$/i, '.jpg'), { type: 'image/jpeg' });
+  } catch (err) {
+    setMsg('图片格式转换失败，请尝试换一张 JPG 图片', 'err');
+    btn.disabled = false;
+    return; // 转换失败就停下
+  }
+}
+    const ext = finalFile.name.split('.').pop().toLowerCase();
     const path = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
     const { error: upErr } = await supabaseClient.storage
       .from('photos')
-      .upload(path, file, { contentType: file.type, upsert: false });
+      .upload(path, finalFile, { contentType: finalFile.type, upsert: false });
     if (upErr) throw upErr;
 
     // 3. 拿图片链接
@@ -428,6 +447,7 @@ window.addEventListener('scroll', function() {
 </body>
 
 </html>
+
 
 
 
