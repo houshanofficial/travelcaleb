@@ -295,7 +295,7 @@ async function loadPopupContent(photo, marker) {
     <div class="popup-content">
       <img src="${photo.photo_url}" onclick="window.open(this.src, '_blank')">
       <div class="city-name">${photo.country} · ${photo.city}</div>
-      <div class="nickname">来自：${photo.nickname || '匿名读者'}</div>
+      <div class="nickname">来自：${photo.nickname || '匿名观察员'}</div>
       ${extraInfo}
       <div style="margin-top: 6px; font-size: 12px; color: #ff6b6b; font-weight: bold;">
         ❤️ <span id="popup-like-count-${photo.id}">${photo.likes || 0}</span> 人喜欢
