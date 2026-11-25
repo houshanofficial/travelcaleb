@@ -180,7 +180,7 @@ async function loadMapData() {
 
   // 顶部统计
   const uniqueCities = new Set(data.map(photo => photo.city).filter(Boolean));
-  const uniqueRegions = new Set(data.map(photo => photo.country).filter(Boolean));
+  const uniqueRegions = new Set(data.map(photo => photo.province).filter(Boolean));
   document.getElementById('stats').innerHTML = `
     <div style="margin-bottom: 2px;">🍏共计观测到 <span style="font-size: 18px; font-weight: 900; color: #a2d846;">${data.length}</span> 次小昼蛙🐸</div>
     <div>他走过 <span style="font-size: 18px; font-weight: 900; color: #a2d846;">${uniqueCities.size}</span> 个城市 · 跨越了 <span style="font-size: 18px; font-weight: 900; color: #a2d846;">${uniqueRegions.size}</span> 个区域，终于回到你的身边</div>
