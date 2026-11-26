@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>我的观察记录</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; background: #f5f8f2; padding: 20px; color: #333; margin: 0; }
+  .card { max-width: 480px; margin: 0 auto; background: #fff; border-radius: 16px; padding: 24px; box-shadow: 0 6px 25px rgba(0,0,0,0.05); }
+  .title { font-size: 22px; font-weight: 900; color: #1a2e05; text-align: center; margin-bottom: 20px; }
+  
+  .input-group { display: flex; gap: 10px; margin-bottom: 20px; }
+  .input-group input { flex: 1; padding: 12px; border: 2px solid #eef2eb; border-radius: 10px; font-size: 15px; font-family: inherit; outline: none; transition: all 0.2s; }
+  .input-group input:focus { border-color: #a2d846; background: #fff; box-shadow: 0 0 0 3px rgba(162, 216, 70, 0.15); }
+  .input-group button { background: #a2d846; color: #1a2e05; border: none; padding: 0 24px; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; transition: all 0.2s; }
+  .input-group button:hover { background: #b5e65e; }
+
+  .result-card { background: #fafbf9; border: 1px solid #eee; border-radius: 12px; padding: 16px; margin-bottom: 16px; display: flex; gap: 12px; align-items: flex-start; }
+  .result-card img { width: 90px; height: 90px; object-fit: cover; border-radius: 8px; background: #eee; }
+  .info { flex: 1; }
+  .info h4 { margin: 0 0 6px 0; font-size: 16px; color: #333; }
+  .info p { margin: 0 0 4px 0; font-size: 12px; color: #666; }
+  
+  .status { font-weight: bold; font-size: 12px; margin-top: 8px; display: inline-block; padding: 4px 8px; border-radius: 6px; }
+  .status-pending { color: #856404; background: #fff3cd; border: 1px solid #ffeeba; }
+  .status-published { color: #155724; background: #d4edda; border: 1px solid #c3e6cb; }
+  .status-rejected { color: #721c24; background: #f8d7da; border: 1px solid #f5c6cb; }
+
+  .coupon-status { margin-top: 10px; padding-top: 10px; border-top: 1px dashed #eee; font-weight: bold; font-size: 13px; }
+  .empty-msg { text-align: center; color: #999; font-size: 14px; margin-top: 20px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="title">我的观察记录</div>
+  
+  <div class="input-group">
+    <!-- 添加了 uppercase 样式，输入自动变大写 -->
+    <input type="text" id="codeInput" placeholder="输入兑换码 (如 Calebb-A1B2)">
+    <button onclick="searchByCode()">查询</button>
+  </div>
+
+  <div id="resultList">
+    <div class="empty-msg">请输入专属兑换码查询审核进度</div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://boowpbxtwapcsvmpobim.supabase.co'; 
+const SUPABASE_ANON_KEY = 'sb_publishable_5dgNwsXRanNlIigdlNvWlg_XL-6EYe_';
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+async function searchByCode() {
+  const inputVal = document.getElementById('codeInput').value.trim().toUpperCase();
+  const listEl = document.getElementById('resultList');
+  
+  if (!inputVal) { alert('请输入兑换码哦~'); return; }
+  
+  listEl.innerHTML = '<div class="empty-msg">正在查询...</div>';
+  
+  // 去数据库查询（使用 ilike 进行不区分大小写的模糊匹配）
+  // 比如输入 calebb-a1b2，就能查到 Calebb-A1B2
+  const { data, error } = await supabaseClient
+    .from('photos')
+    .select('*')
+    .ilike('redeem_code', inputVal);
+
+  // 如果网络或数据库报错
+  if (error) {
+    listEl.innerHTML = `<div class="empty-msg" style="color:#c0392b;">查询失败：${error.message}</div>`;
+    return;
+  }
+
+  // 如果没查到数据
+  if (!data || data.length === 0) {
+    listEl.innerHTML = '<div class="empty-msg" style="color:#c0392b;">❌ 查无此码，请检查输入是否正确（注意大小写和连字符）。</div>';
+    return;
+  }
+
+  // 查到数据，开始渲染
+  let html = '';
+  data.forEach(photo => {
+    let statusText = '';
+    let statusClass = '';
+    let couponText = '';
+    let couponColor = '';
+
+    // 根据 status 判断显示内容
+    if (photo.status === 'pending') {
+      statusText = '⏳暂未审核';
+      statusClass = 'status-pending';
+      couponText = '兑换码暂未生效，请耐心等待审核';
+      couponColor = '#856404';
+    } else if (photo.status === 'published') {
+      statusText = '✅审核已通过 (已展示在地图)';
+      statusClass = 'status-published';
+      couponText = '兑换码已生效！12月展会凭此码兑换特典';
+      couponColor = '#155724';
+    } else if (photo.status === 'rejected') {
+      statusText = '❌审核未通过';
+      statusClass = 'status-rejected';
+      couponText = '兑换码已失效';
+      couponColor = '#721c24';
+    }
+
+    html += `
+      <div class="result-card">
+        <img src="${photo.photo_url}" alt="打卡照">
+        <div class="info">
+          <h4>${photo.country} · ${photo.city}</h4>
+          <p>来自：${photo.nickname || '匿名读者'}</p>
+          <p>日期：${photo.travel_date || '未填写'}</p>
+          <span class="status ${statusClass}">${statusText}</span>
+          <div class="coupon-status" style="color: ${couponColor};">${couponText}</div>
+        </div>
+      </div>
+    `;
+  });
+  
+  listEl.innerHTML = html;
+}
+
+// 支持按回车键查询
+document.getElementById('codeInput').addEventListener('keypress', function (e) {
+  if (e.key === 'Enter') searchByCode();
+});
+</script>
+</body>
+</html>
