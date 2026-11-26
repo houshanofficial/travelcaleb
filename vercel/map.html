@@ -45,7 +45,7 @@
   
   /* ★ 修改 1：评论列表容器，限制高度并开启上下滑动 */
   .comment-list-wrap {
-    max-height: 110px; 
+    max-height: 100px; 
     overflow-y: auto;  
     margin-top: 4px;
     padding-right: 4px;
@@ -264,7 +264,7 @@ async function loadPopupContent(photo, marker) {
 
   const { data: comments } = await supabaseClient
     .from('comments').select('*').eq('photo_id', photo.id)
-    .order('created_at', { ascending: false }).limit(2);
+    .order('created_at', { ascending: false });
 
   let commentHtml = '';
   if (comments && comments.length > 0) {
